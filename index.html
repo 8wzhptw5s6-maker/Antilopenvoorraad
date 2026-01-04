@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<title>Voorraad Telling – Mobielvriendelijk</title>
+<title>Voorraad Telling – Mobiel & Calculator</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
@@ -10,8 +10,10 @@ body { font-family: Arial; padding:15px; background:#f4f6f8; font-size:16px; }
 .card { background:white; padding:15px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.1); margin-bottom:20px; }
 h2,h3 { margin:10px 0; }
 
-table { width:100%; border-collapse:collapse; margin-top:10px; display:block; overflow-x:auto; white-space:nowrap; }
-th, td { border:1px solid #ccc; padding:8px; text-align:center; min-width:60px; }
+/* Tabel mobielvriendelijk */
+.table-wrapper { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; min-width:600px; }
+th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 th { background:#eee; position:sticky; top:0; z-index:1; }
 input[type=number] { width:60px; font-size:16px; padding:4px; }
 
@@ -24,18 +26,23 @@ input[type=number] { width:60px; font-size:16px; padding:4px; }
 button { font-size:16px; padding:10px 15px; margin:5px 0; width:100%; border-radius:5px; border:none; background:#4CAF50; color:white; cursor:pointer; }
 button:hover { background:#45a049; }
 
+/* Calculator knop in tabel */
+.calc-btn { font-size:16px; padding:2px 6px; margin-left:2px; width:auto; background:#2196F3; }
+
 /* Print vriendelijk */
 @media print {
-  body { background:white; }
-  .card, button, input { display:none; }
-  table { width:100%; }
+  body { background:white; font-size:14pt; }
+  button, input { display:none; } /* Alleen knoppen en input verbergen */
+  .card { box-shadow:none; padding:0; margin:0; }
+  .table-wrapper { overflow:visible; }
+  table { width:100%; display:table; border-collapse:collapse; }
   th, td { border:1px solid #000; }
 }
 </style>
 </head>
 <body>
 
-<h2>📦 Voorraad Telling – Mobielvriendelijk</h2>
+<h2>📦 Voorraad Telling – Mobiel & Calculator</h2>
 
 <div class="card">
   <h3>1️⃣ Excel importeren</h3>
@@ -44,20 +51,22 @@ button:hover { background:#45a049; }
 
 <div class="card">
   <h3>2️⃣ Telling invoeren</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Product</th>
-        <th>Verwacht</th>
-        <th>Stuks per verpakking</th>
-        <th>Volledige verpakkingen</th>
-        <th>Losse stuks</th>
-        <th>Totaal geteld</th>
-        <th>Verschil</th>
-      </tr>
-    </thead>
-    <tbody id="tabel"></tbody>
-  </table>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Verwacht</th>
+          <th>Stuks per verpakking</th>
+          <th>Volledige verpakkingen</th>
+          <th>Losse stuks</th>
+          <th>Totaal geteld</th>
+          <th>Verschil</th>
+        </tr>
+      </thead>
+      <tbody id="tabel"></tbody>
+    </table>
+  </div>
 </div>
 
 <div class="card">
@@ -100,6 +109,7 @@ function render() {
     const totaal = p.verpakkingen * p.perVerpakking + p.losse;
     const verschil = totaal - p.verwacht;
 
+    // Alleen kleur als er iets is ingevuld
     let cls = "";
     if(p.verpakkingen>0 || p.losse>0){
       cls = verschil<0?"negatief":verschil>0?"positief":"verplicht";
@@ -111,11 +121,32 @@ function render() {
         <td>${p.verwacht}</td>
         <td>${p.perVerpakking}</td>
         <td><input type="number" inputmode="numeric" min="0" value="${p.verpakkingen}" onchange="producten[${i}].verpakkingen=Number(this.value); render();"></td>
-        <td><input type="number" inputmode="numeric" min="0" value="${p.losse}" onchange="producten[${i}].losse=Number(this.value); render();"></td>
+        <td>
+          <input type="number" inputmode="numeric" min="0" value="${p.losse}" id="losse-${i}" onchange="producten[${i}].losse=Number(this.value); render();">
+          <button type="button" class="calc-btn" onclick="calc(${i})">🧮</button>
+        </td>
         <td>${totaal}</td>
         <td>${verschil}</td>
       </tr>`;
   });
+}
+
+// Inline rekenmachine voor losse stuks
+function calc(i){
+  const huidige = producten[i].losse || 0;
+  const expr = prompt("Voer een berekening in voor losse stuks:", huidige);
+  if(expr !== null){
+    try {
+      // eslint-disable-next-line no-eval
+      const resultaat = eval(expr);
+      if(!isNaN(resultaat)) {
+        producten[i].losse = Math.round(resultaat);
+        render();
+      }
+    } catch(e){
+      alert("Ongeldige berekening!");
+    }
+  }
 }
 
 function exporteer(){
