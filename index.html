@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <title>Voorraad Tellen</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    input, button { margin: 5px; padding: 8px; }
+    table { border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; }
+  </style>
+</head>
+<body>
+
+<h2>📦 Voorraad Tellen</h2>
+
+<input id="artikel" placeholder="Artikelnaam">
+<input id="aantal" type="number" placeholder="Aantal">
+<input id="locatie" placeholder="Locatie">
+<button onclick="toevoegen()">Toevoegen</button>
+<button onclick="exporteer()">Export naar Excel</button>
+
+<table id="tabel">
+  <thead>
+    <tr>
+      <th>Artikel</th>
+      <th>Aantal</th>
+      <th>Locatie</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+let voorraad = JSON.parse(localStorage.getItem("voorraad")) || [];
+
+function toevoegen() {
+  const artikel = document.getElementById("artikel").value;
+  const aantal = document.getElementById("aantal").value;
+  const locatie = document.getElementById("locatie").value;
+
+  if (!artikel || !aantal) return alert("Vul artikel en aantal in");
+
+  voorraad.push({ artikel, aantal, locatie });
+  localStorage.setItem("voorraad", JSON.stringify(voorraad));
+  render();
+}
+
+function render() {
+  const tbody = document.querySelector("#tabel tbody");
+  tbody.innerHTML = "";
+  voorraad.forEach(v => {
+    tbody.innerHTML += `<tr>
+      <td>${v.artikel}</td>
+      <td>${v.aantal}</td>
+      <td>${v.locatie || ""}</td>
+    </tr>`;
+  });
+}
+
+function exporteer() {
+  let csv = "Artikel,Aantal,Locatie\n";
+  voorraad.forEach(v => {
+    csv += `${v.artikel},${v.aantal},${v.locatie || ""}\n`;
+  });
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "voorraad.csv";
+  a.click();
+}
+
+render();
+</script>
+
+</body>
+</html>
