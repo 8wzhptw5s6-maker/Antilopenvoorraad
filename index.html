@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<title>Voorraad Telling – Mobiel & Calculator</title>
+<title>Voorraad Telling – Mobiel & Financieel</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
@@ -27,7 +27,8 @@ button { font-size:16px; padding:10px 15px; margin:5px 0; width:100%; border-rad
 button:hover { background:#45a049; }
 
 /* Calculator knop in tabel */
-.calc-btn { font-size:16px; padding:2px 6px; margin-left:2px; width:auto; background:#2196F3; }
+.calc-btn { font-size:16px; padding:2px 6px; margin-left:2px; width:auto; background:#2196F3; color:white; border:none; border-radius:3px; cursor:pointer; }
+.calc-btn:hover { background:#1976D2; }
 
 /* Print vriendelijk */
 @media print {
@@ -42,7 +43,7 @@ button:hover { background:#45a049; }
 </head>
 <body>
 
-<h2>📦 Voorraad Telling – Mobiel & Calculator</h2>
+<h2>📦 Voorraad Telling – Mobiel & Financieel</h2>
 
 <div class="card">
   <h3>1️⃣ Excel importeren</h3>
@@ -87,10 +88,12 @@ document.getElementById("file").addEventListener("change", e => {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet);
 
+    // Voeg prijs toe, intern
     producten = rows.map(r => ({
       product: r.Product || r.product || "Onbekend",
       verwacht: Number(r.VerwachteVoorraad || r.verwachtevoorraad || 0),
       perVerpakking: Number(r.StuksPerVerpakking || r.stuksperverpakking || 1),
+      prijs: Number(r.Prijs || r.prijs || 0),
       verpakkingen: 0,
       losse: 0
     }));
@@ -109,7 +112,6 @@ function render() {
     const totaal = p.verpakkingen * p.perVerpakking + p.losse;
     const verschil = totaal - p.verwacht;
 
-    // Alleen kleur als er iets is ingevuld
     let cls = "";
     if(p.verpakkingen>0 || p.losse>0){
       cls = verschil<0?"negatief":verschil>0?"positief":"verplicht";
@@ -131,7 +133,7 @@ function render() {
   });
 }
 
-// Inline rekenmachine voor losse stuks
+// Inline rekenmachine
 function calc(i){
   const huidige = producten[i].losse || 0;
   const expr = prompt("Voer een berekening in voor losse stuks:", huidige);
@@ -155,6 +157,7 @@ function exporteer(){
   const output = producten.map(p=>{
     const totaal = p.verpakkingen*p.perVerpakking+p.losse;
     const verschil = totaal - p.verwacht;
+    const waarde = totaal * p.prijs;
     return {
       Product:p.product,
       Verwacht:p.verwacht,
@@ -162,20 +165,41 @@ function exporteer(){
       VolledigeVerpakkingen:p.verpakkingen,
       LosseStuks:p.losse,
       TotaalGeteld:totaal,
-      Verschil:verschil
+      Verschil:verschil,
+      Waarde:waarde.toFixed(2)
     };
   });
 
-  const ws = XLSX.utils.json_to_sheet(output,{header:["Product","Verwacht","StuksPerVerpakking","VolledigeVerpakkingen","LosseStuks","TotaalGeteld","Verschil"]});
+  // Totaalregel onderaan
+  const totaalRegel = {
+    Product: "TOTAAL",
+    Verwacht: output.reduce((sum,row)=>sum+row.Verwacht,0),
+    StuksPerVerpakking: "",
+    VolledigeVerpakkingen: output.reduce((sum,row)=>sum+row.VolledigeVerpakkingen,0),
+    LosseStuks: output.reduce((sum,row)=>sum+row.LosseStuks,0),
+    TotaalGeteld: output.reduce((sum,row)=>sum+row.TotaalGeteld,0),
+    Verschil: output.reduce((sum,row)=>sum+row.Verschil,0),
+    Waarde: output.reduce((sum,row)=>sum+parseFloat(row.Waarde),0).toFixed(2)
+  };
 
-  ws['!cols'] = [{wch:25},{wch:12},{wch:18},{wch:20},{wch:15},{wch:15},{wch:10}];
+  output.push(totaalRegel);
 
-  // Kleuren Excel
+  const ws = XLSX.utils.json_to_sheet(output,{
+    header:["Product","Verwacht","StuksPerVerpakking","VolledigeVerpakkingen","LosseStuks","TotaalGeteld","Verschil","Waarde"]
+  });
+
+  ws['!cols'] = [
+    {wch:25},{wch:12},{wch:18},{wch:20},{wch:15},{wch:15},{wch:10},{wch:12}
+  ];
+
+  // Kleuren Excel (alleen gewone rijen)
   output.forEach((row,i)=>{
     const r=i+2;
     const diffCell=`G${r}`;
-    if(row.Verschil<0){ ws[diffCell].s={fill:{fgColor:{rgb:"FFAAAA"}}}; }
-    else if(row.Verschil>0){ ws[diffCell].s={fill:{fgColor:{rgb:"AAFFAA"}}}; }
+    if(row.Product !== "TOTAAL"){
+      if(row.Verschil<0){ ws[diffCell].s={fill:{fgColor:{rgb:"FFAAAA"}}}; }
+      else if(row.Verschil>0){ ws[diffCell].s={fill:{fgColor:{rgb:"AAFFAA"}}}; }
+    }
   });
 
   XLSX.utils.book_append_sheet(wb, ws,"Telling");
