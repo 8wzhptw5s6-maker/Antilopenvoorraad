@@ -6,17 +6,23 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
-body { font-family: Arial; padding:20px; background:#f4f6f8; }
+body { font-family: Arial; padding:15px; background:#f4f6f8; font-size:16px; }
 .card { background:white; padding:15px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.1); margin-bottom:20px; }
-table { width:100%; border-collapse:collapse; margin-top:10px; }
-th, td { border:1px solid #ccc; padding:8px; text-align:center; }
-th { background:#eee; }
-input[type=number] { width:60px; }
+h2,h3 { margin:10px 0; }
 
-/* Kleuren alleen als er iets is ingevuld */
+table { width:100%; border-collapse:collapse; margin-top:10px; display:block; overflow-x:auto; white-space:nowrap; }
+th, td { border:1px solid #ccc; padding:8px; text-align:center; min-width:60px; }
+th { background:#eee; position:sticky; top:0; z-index:1; }
+input[type=number] { width:60px; font-size:16px; padding:4px; }
+
+/* Kleuren alleen bij ingevulde telling */
 .verplicht { background:#f9f9f9; }
 .negatief { background:#ffdddd; }
 .positief { background:#ddffdd; }
+
+/* Knoppen mobielvriendelijk */
+button { font-size:16px; padding:10px 15px; margin:5px 0; width:100%; border-radius:5px; border:none; background:#4CAF50; color:white; cursor:pointer; }
+button:hover { background:#45a049; }
 
 /* Print vriendelijk */
 @media print {
@@ -90,14 +96,13 @@ function render() {
   const tb = document.getElementById("tabel");
   tb.innerHTML = "";
 
-  producten.forEach((p, i) => {
+  producten.forEach((p,i) => {
     const totaal = p.verpakkingen * p.perVerpakking + p.losse;
     const verschil = totaal - p.verwacht;
 
-    // Alleen kleur als er iets is ingevuld
     let cls = "";
-    if(p.verpakkingen > 0 || p.losse > 0){
-      cls = verschil < 0 ? "negatief" : verschil > 0 ? "positief" : "verplicht";
+    if(p.verpakkingen>0 || p.losse>0){
+      cls = verschil<0?"negatief":verschil>0?"positief":"verplicht";
     }
 
     tb.innerHTML += `
@@ -105,55 +110,45 @@ function render() {
         <td>${p.product}</td>
         <td>${p.verwacht}</td>
         <td>${p.perVerpakking}</td>
-        <td><input type="number" inputmode="numeric" min="0" value="${p.verpakkingen}" 
-            onchange="producten[${i}].verpakkingen=Number(this.value); render();"></td>
-        <td><input type="number" inputmode="numeric" min="0" value="${p.losse}" 
-            onchange="producten[${i}].losse=Number(this.value); render();"></td>
+        <td><input type="number" inputmode="numeric" min="0" value="${p.verpakkingen}" onchange="producten[${i}].verpakkingen=Number(this.value); render();"></td>
+        <td><input type="number" inputmode="numeric" min="0" value="${p.losse}" onchange="producten[${i}].losse=Number(this.value); render();"></td>
         <td>${totaal}</td>
         <td>${verschil}</td>
       </tr>`;
   });
 }
 
-function exporteer() {
+function exporteer(){
   const wb = XLSX.utils.book_new();
 
-  // Maak JSON voor SheetJS
-  const output = producten.map(p => {
-    const totaal = p.verpakkingen * p.perVerpakking + p.losse;
+  const output = producten.map(p=>{
+    const totaal = p.verpakkingen*p.perVerpakking+p.losse;
     const verschil = totaal - p.verwacht;
     return {
-      Product: p.product,
-      Verwacht: p.verwacht,
-      StuksPerVerpakking: p.perVerpakking,
-      VolledigeVerpakkingen: p.verpakkingen,
-      LosseStuks: p.losse,
-      TotaalGeteld: totaal,
-      Verschil: verschil
+      Product:p.product,
+      Verwacht:p.verwacht,
+      StuksPerVerpakking:p.perVerpakking,
+      VolledigeVerpakkingen:p.verpakkingen,
+      LosseStuks:p.losse,
+      TotaalGeteld:totaal,
+      Verschil:verschil
     };
   });
 
-  const ws = XLSX.utils.json_to_sheet(output, {header:[
-    "Product","Verwacht","StuksPerVerpakking","VolledigeVerpakkingen","LosseStuks","TotaalGeteld","Verschil"]});
+  const ws = XLSX.utils.json_to_sheet(output,{header:["Product","Verwacht","StuksPerVerpakking","VolledigeVerpakkingen","LosseStuks","TotaalGeteld","Verschil"]});
 
-  // Kolombreedtes
-  ws['!cols'] = [
-    {wch: 25},{wch: 12},{wch: 18},{wch: 20},{wch: 15},{wch: 15},{wch: 10}
-  ];
+  ws['!cols'] = [{wch:25},{wch:12},{wch:18},{wch:20},{wch:15},{wch:15},{wch:10}];
 
-  // Kleuren in Excel (tekort rood, overschot groen)
+  // Kleuren Excel
   output.forEach((row,i)=>{
-    const r = i+2; // +1 voor header
-    const diffCell = `G${r}`;
-    if(row.Verschil < 0){
-      ws[diffCell].s = {fill:{fgColor:{rgb:"FFAAAA"}}};
-    } else if(row.Verschil > 0){
-      ws[diffCell].s = {fill:{fgColor:{rgb:"AAFFAA"}}};
-    }
+    const r=i+2;
+    const diffCell=`G${r}`;
+    if(row.Verschil<0){ ws[diffCell].s={fill:{fgColor:{rgb:"FFAAAA"}}}; }
+    else if(row.Verschil>0){ ws[diffCell].s={fill:{fgColor:{rgb:"AAFFAA"}}}; }
   });
 
-  XLSX.utils.book_append_sheet(wb, ws, "Telling");
-  XLSX.writeFile(wb, "voorraad_telling.xlsx");
+  XLSX.utils.book_append_sheet(wb, ws,"Telling");
+  XLSX.writeFile(wb,"voorraad_telling.xlsx");
 }
 </script>
 
