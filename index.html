@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<title>Voorraad Telling – Professionele Export</title>
+<title>Voorraad Telling – Mobielvriendelijk</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
@@ -12,6 +12,9 @@ table { width:100%; border-collapse:collapse; margin-top:10px; }
 th, td { border:1px solid #ccc; padding:8px; text-align:center; }
 th { background:#eee; }
 input[type=number] { width:60px; }
+
+/* Kleuren alleen als er iets is ingevuld */
+.verplicht { background:#f9f9f9; }
 .negatief { background:#ffdddd; }
 .positief { background:#ddffdd; }
 
@@ -26,7 +29,7 @@ input[type=number] { width:60px; }
 </head>
 <body>
 
-<h2>📦 Voorraad Telling – Professionele Export</h2>
+<h2>📦 Voorraad Telling – Mobielvriendelijk</h2>
 
 <div class="card">
   <h3>1️⃣ Excel importeren</h3>
@@ -90,9 +93,11 @@ function render() {
   producten.forEach((p, i) => {
     const totaal = p.verpakkingen * p.perVerpakking + p.losse;
     const verschil = totaal - p.verwacht;
+
+    // Alleen kleur als er iets is ingevuld
     let cls = "";
     if(p.verpakkingen > 0 || p.losse > 0){
-      cls = verschil < 0 ? "negatief" : verschil > 0 ? "positief" : "";
+      cls = verschil < 0 ? "negatief" : verschil > 0 ? "positief" : "verplicht";
     }
 
     tb.innerHTML += `
@@ -100,9 +105,9 @@ function render() {
         <td>${p.product}</td>
         <td>${p.verwacht}</td>
         <td>${p.perVerpakking}</td>
-        <td><input type="number" min="0" value="${p.verpakkingen}" 
+        <td><input type="number" inputmode="numeric" min="0" value="${p.verpakkingen}" 
             onchange="producten[${i}].verpakkingen=Number(this.value); render();"></td>
-        <td><input type="number" min="0" value="${p.losse}" 
+        <td><input type="number" inputmode="numeric" min="0" value="${p.losse}" 
             onchange="producten[${i}].losse=Number(this.value); render();"></td>
         <td>${totaal}</td>
         <td>${verschil}</td>
@@ -136,22 +141,18 @@ function exporteer() {
     {wch: 25},{wch: 12},{wch: 18},{wch: 20},{wch: 15},{wch: 15},{wch: 10}
   ];
 
-  // Conditie kleuren in Excel (tekort rood, overschot groen)
+  // Kleuren in Excel (tekort rood, overschot groen)
   output.forEach((row,i)=>{
-    const r = i+1+1; // +1 voor header, +1 omdat Excel begint bij 1
-    const diffCell = `G${r}`; // Kolom G = Verschil
+    const r = i+2; // +1 voor header
+    const diffCell = `G${r}`;
     if(row.Verschil < 0){
-      if(!ws[diffCell].s) ws[diffCell].s={};
-      ws[diffCell].s.fill = {fgColor:{rgb:"FFAAAA"}};
+      ws[diffCell].s = {fill:{fgColor:{rgb:"FFAAAA"}}};
     } else if(row.Verschil > 0){
-      if(!ws[diffCell].s) ws[diffCell].s={};
-      ws[diffCell].s.fill = {fgColor:{rgb:"AAFFAA"}};
+      ws[diffCell].s = {fill:{fgColor:{rgb:"AAFFAA"}}};
     }
   });
 
-  // Zet de sheet als tabel
   XLSX.utils.book_append_sheet(wb, ws, "Telling");
-
   XLSX.writeFile(wb, "voorraad_telling.xlsx");
 }
 </script>
