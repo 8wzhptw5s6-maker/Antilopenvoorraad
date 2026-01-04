@@ -2,124 +2,158 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<title>Voorraadbeheer</title>
+<title>Voorraad Telling – Professionele Export</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
 <style>
-body { font-family: Arial; padding: 20px; }
-input, button, select { padding: 6px; margin: 4px; }
-table { border-collapse: collapse; margin-top: 20px; width: 100%; }
-th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
-th { background: #f0f0f0; }
+body { font-family: Arial; padding:20px; background:#f4f6f8; }
+.card { background:white; padding:15px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.1); margin-bottom:20px; }
+table { width:100%; border-collapse:collapse; margin-top:10px; }
+th, td { border:1px solid #ccc; padding:8px; text-align:center; }
+th { background:#eee; }
+input[type=number] { width:60px; }
+.negatief { background:#ffdddd; }
+.positief { background:#ddffdd; }
+
+/* Print vriendelijk */
+@media print {
+  body { background:white; }
+  .card, button, input { display:none; }
+  table { width:100%; }
+  th, td { border:1px solid #000; }
+}
 </style>
 </head>
 <body>
 
-<h2>📦 Voorraadbeheer</h2>
+<h2>📦 Voorraad Telling – Professionele Export</h2>
 
-<h3>➕ Levering invoeren</h3>
-<input id="l_artikel" placeholder="Artikel">
-<input id="l_aantal" type="number" placeholder="Aantal">
-<button onclick="levering()">Toevoegen</button>
+<div class="card">
+  <h3>1️⃣ Excel importeren</h3>
+  <input type="file" id="file" accept=".xlsx,.xls">
+</div>
 
-<h3>➖ Verkoop invoeren</h3>
-<input id="v_artikel" placeholder="Artikel">
-<input id="v_aantal" type="number" placeholder="Aantal">
-<button onclick="verkoop()">Toevoegen</button>
+<div class="card">
+  <h3>2️⃣ Telling invoeren</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>Verwacht</th>
+        <th>Stuks per verpakking</th>
+        <th>Volledige verpakkingen</th>
+        <th>Losse stuks</th>
+        <th>Totaal geteld</th>
+        <th>Verschil</th>
+      </tr>
+    </thead>
+    <tbody id="tabel"></tbody>
+  </table>
+</div>
 
-<h3>📋 Voorraad tellen</h3>
-<input id="t_artikel" placeholder="Artikel">
-<input id="t_aantal" type="number" placeholder="Geteld aantal">
-<button onclick="telling()">Opslaan</button>
-
-<button onclick="exporteer()">📤 Export Excel</button>
-
-<table>
-<thead>
-<tr>
-<th>Artikel</th>
-<th>Leveringen</th>
-<th>Verkopen</th>
-<th>Verwacht</th>
-<th>Geteld</th>
-<th>Verschil</th>
-</tr>
-</thead>
-<tbody id="tabel"></tbody>
-</table>
+<div class="card">
+  <button onclick="exporteer()">📤 Export naar Excel</button>
+  <button onclick="window.print()">🖨️ Printlijst</button>
+</div>
 
 <script>
-let data = JSON.parse(localStorage.getItem("voorraad")) || {};
+let producten = [];
 
-function getArtikel(naam) {
-  if (!data[naam]) {
-    data[naam] = { levering: 0, verkoop: 0, telling: null };
-  }
-  return data[naam];
-}
+document.getElementById("file").addEventListener("change", e => {
+  const file = e.target.files[0];
+  const reader = new FileReader();
 
-function levering() {
-  let a = l_artikel.value;
-  let n = Number(l_aantal.value);
-  if (!a || !n) return;
-  getArtikel(a).levering += n;
-  opslaan();
-}
+  reader.onload = evt => {
+    const data = new Uint8Array(evt.target.result);
+    const workbook = XLSX.read(data, { type: "array" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
 
-function verkoop() {
-  let a = v_artikel.value;
-  let n = Number(v_aantal.value);
-  if (!a || !n) return;
-  getArtikel(a).verkoop += n;
-  opslaan();
-}
+    producten = rows.map(r => ({
+      product: r.Product || r.product || "Onbekend",
+      verwacht: Number(r.VerwachteVoorraad || r.verwachtevoorraad || 0),
+      perVerpakking: Number(r.StuksPerVerpakking || r.stuksperverpakking || 1),
+      verpakkingen: 0,
+      losse: 0
+    }));
 
-function telling() {
-  let a = t_artikel.value;
-  let n = Number(t_aantal.value);
-  if (!a && n !== 0) return;
-  getArtikel(a).telling = n;
-  opslaan();
-}
+    render();
+  };
 
-function opslaan() {
-  localStorage.setItem("voorraad", JSON.stringify(data));
-  render();
-}
+  reader.readAsArrayBuffer(file);
+});
 
 function render() {
-  const tbody = document.getElementById("tabel");
-  tbody.innerHTML = "";
-  for (let a in data) {
-    let d = data[a];
-    let verwacht = d.levering - d.verkoop;
-    let verschil = d.telling !== null ? d.telling - verwacht : "";
-    tbody.innerHTML += `
-      <tr>
-        <td>${a}</td>
-        <td>${d.levering}</td>
-        <td>${d.verkoop}</td>
-        <td>${verwacht}</td>
-        <td>${d.telling ?? ""}</td>
+  const tb = document.getElementById("tabel");
+  tb.innerHTML = "";
+
+  producten.forEach((p, i) => {
+    const totaal = p.verpakkingen * p.perVerpakking + p.losse;
+    const verschil = totaal - p.verwacht;
+    let cls = "";
+    if(p.verpakkingen > 0 || p.losse > 0){
+      cls = verschil < 0 ? "negatief" : verschil > 0 ? "positief" : "";
+    }
+
+    tb.innerHTML += `
+      <tr class="${cls}">
+        <td>${p.product}</td>
+        <td>${p.verwacht}</td>
+        <td>${p.perVerpakking}</td>
+        <td><input type="number" min="0" value="${p.verpakkingen}" 
+            onchange="producten[${i}].verpakkingen=Number(this.value); render();"></td>
+        <td><input type="number" min="0" value="${p.losse}" 
+            onchange="producten[${i}].losse=Number(this.value); render();"></td>
+        <td>${totaal}</td>
         <td>${verschil}</td>
       </tr>`;
-  }
+  });
 }
 
 function exporteer() {
-  let csv = "Artikel,Leveringen,Verkopen,Verwacht,Geteld,Verschil\n";
-  for (let a in data) {
-    let d = data[a];
-    let verwacht = d.levering - d.verkoop;
-    let verschil = d.telling !== null ? d.telling - verwacht : "";
-    csv += `${a},${d.levering},${d.verkoop},${verwacht},${d.telling ?? ""},${verschil}\n`;
-  }
-  let blob = new Blob([csv], { type: "text/csv" });
-  let link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "voorraad.csv";
-  link.click();
-}
+  const wb = XLSX.utils.book_new();
 
-render();
+  // Maak JSON voor SheetJS
+  const output = producten.map(p => {
+    const totaal = p.verpakkingen * p.perVerpakking + p.losse;
+    const verschil = totaal - p.verwacht;
+    return {
+      Product: p.product,
+      Verwacht: p.verwacht,
+      StuksPerVerpakking: p.perVerpakking,
+      VolledigeVerpakkingen: p.verpakkingen,
+      LosseStuks: p.losse,
+      TotaalGeteld: totaal,
+      Verschil: verschil
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(output, {header:[
+    "Product","Verwacht","StuksPerVerpakking","VolledigeVerpakkingen","LosseStuks","TotaalGeteld","Verschil"]});
+
+  // Kolombreedtes
+  ws['!cols'] = [
+    {wch: 25},{wch: 12},{wch: 18},{wch: 20},{wch: 15},{wch: 15},{wch: 10}
+  ];
+
+  // Conditie kleuren in Excel (tekort rood, overschot groen)
+  output.forEach((row,i)=>{
+    const r = i+1+1; // +1 voor header, +1 omdat Excel begint bij 1
+    const diffCell = `G${r}`; // Kolom G = Verschil
+    if(row.Verschil < 0){
+      if(!ws[diffCell].s) ws[diffCell].s={};
+      ws[diffCell].s.fill = {fgColor:{rgb:"FFAAAA"}};
+    } else if(row.Verschil > 0){
+      if(!ws[diffCell].s) ws[diffCell].s={};
+      ws[diffCell].s.fill = {fgColor:{rgb:"AAFFAA"}};
+    }
+  });
+
+  // Zet de sheet als tabel
+  XLSX.utils.book_append_sheet(wb, ws, "Telling");
+
+  XLSX.writeFile(wb, "voorraad_telling.xlsx");
+}
 </script>
 
 </body>
