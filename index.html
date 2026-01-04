@@ -1,75 +1,122 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="UTF-8">
-  <title>Voorraad Tellen</title>
-  <style>
-    body { font-family: Arial; padding: 20px; }
-    input, button { margin: 5px; padding: 8px; }
-    table { border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; }
-  </style>
+<meta charset="UTF-8">
+<title>Voorraadbeheer</title>
+<style>
+body { font-family: Arial; padding: 20px; }
+input, button, select { padding: 6px; margin: 4px; }
+table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+th { background: #f0f0f0; }
+</style>
 </head>
 <body>
 
-<h2>📦 Voorraad Tellen</h2>
+<h2>📦 Voorraadbeheer</h2>
 
-<input id="artikel" placeholder="Artikelnaam">
-<input id="aantal" type="number" placeholder="Aantal">
-<input id="locatie" placeholder="Locatie">
-<button onclick="toevoegen()">Toevoegen</button>
-<button onclick="exporteer()">Export naar Excel</button>
+<h3>➕ Levering invoeren</h3>
+<input id="l_artikel" placeholder="Artikel">
+<input id="l_aantal" type="number" placeholder="Aantal">
+<button onclick="levering()">Toevoegen</button>
 
-<table id="tabel">
-  <thead>
-    <tr>
-      <th>Artikel</th>
-      <th>Aantal</th>
-      <th>Locatie</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
+<h3>➖ Verkoop invoeren</h3>
+<input id="v_artikel" placeholder="Artikel">
+<input id="v_aantal" type="number" placeholder="Aantal">
+<button onclick="verkoop()">Toevoegen</button>
+
+<h3>📋 Voorraad tellen</h3>
+<input id="t_artikel" placeholder="Artikel">
+<input id="t_aantal" type="number" placeholder="Geteld aantal">
+<button onclick="telling()">Opslaan</button>
+
+<button onclick="exporteer()">📤 Export Excel</button>
+
+<table>
+<thead>
+<tr>
+<th>Artikel</th>
+<th>Leveringen</th>
+<th>Verkopen</th>
+<th>Verwacht</th>
+<th>Geteld</th>
+<th>Verschil</th>
+</tr>
+</thead>
+<tbody id="tabel"></tbody>
 </table>
 
 <script>
-let voorraad = JSON.parse(localStorage.getItem("voorraad")) || [];
+let data = JSON.parse(localStorage.getItem("voorraad")) || {};
 
-function toevoegen() {
-  const artikel = document.getElementById("artikel").value;
-  const aantal = document.getElementById("aantal").value;
-  const locatie = document.getElementById("locatie").value;
+function getArtikel(naam) {
+  if (!data[naam]) {
+    data[naam] = { levering: 0, verkoop: 0, telling: null };
+  }
+  return data[naam];
+}
 
-  if (!artikel || !aantal) return alert("Vul artikel en aantal in");
+function levering() {
+  let a = l_artikel.value;
+  let n = Number(l_aantal.value);
+  if (!a || !n) return;
+  getArtikel(a).levering += n;
+  opslaan();
+}
 
-  voorraad.push({ artikel, aantal, locatie });
-  localStorage.setItem("voorraad", JSON.stringify(voorraad));
+function verkoop() {
+  let a = v_artikel.value;
+  let n = Number(v_aantal.value);
+  if (!a || !n) return;
+  getArtikel(a).verkoop += n;
+  opslaan();
+}
+
+function telling() {
+  let a = t_artikel.value;
+  let n = Number(t_aantal.value);
+  if (!a && n !== 0) return;
+  getArtikel(a).telling = n;
+  opslaan();
+}
+
+function opslaan() {
+  localStorage.setItem("voorraad", JSON.stringify(data));
   render();
 }
 
 function render() {
-  const tbody = document.querySelector("#tabel tbody");
+  const tbody = document.getElementById("tabel");
   tbody.innerHTML = "";
-  voorraad.forEach(v => {
-    tbody.innerHTML += `<tr>
-      <td>${v.artikel}</td>
-      <td>${v.aantal}</td>
-      <td>${v.locatie || ""}</td>
-    </tr>`;
-  });
+  for (let a in data) {
+    let d = data[a];
+    let verwacht = d.levering - d.verkoop;
+    let verschil = d.telling !== null ? d.telling - verwacht : "";
+    tbody.innerHTML += `
+      <tr>
+        <td>${a}</td>
+        <td>${d.levering}</td>
+        <td>${d.verkoop}</td>
+        <td>${verwacht}</td>
+        <td>${d.telling ?? ""}</td>
+        <td>${verschil}</td>
+      </tr>`;
+  }
 }
 
 function exporteer() {
-  let csv = "Artikel,Aantal,Locatie\n";
-  voorraad.forEach(v => {
-    csv += `${v.artikel},${v.aantal},${v.locatie || ""}\n`;
-  });
-
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "voorraad.csv";
-  a.click();
+  let csv = "Artikel,Leveringen,Verkopen,Verwacht,Geteld,Verschil\n";
+  for (let a in data) {
+    let d = data[a];
+    let verwacht = d.levering - d.verkoop;
+    let verschil = d.telling !== null ? d.telling - verwacht : "";
+    csv += `${a},${d.levering},${d.verkoop},${verwacht},${d.telling ?? ""},${verschil}\n`;
+  }
+  let blob = new Blob([csv], { type: "text/csv" });
+  let link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "voorraad.csv";
+  link.click();
 }
 
 render();
